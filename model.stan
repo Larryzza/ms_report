@@ -13,6 +13,7 @@ functions {
   real switch_eta(real eta, real week_index, real xi) {
     return(eta + (1 - eta) / (1 + exp(xi * (week_index - 5))));
   }
+  
   real[] sir(real t, real[] y, real[] theta, 
              real[] x_r, int[] x_i) {
       

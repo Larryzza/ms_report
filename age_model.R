@@ -88,10 +88,10 @@ fit_seir <- sampling(model,
                      chains = 3, 
                      seed = 1)
 saveRDS(fit_seir, "fit_seir.rds")
-pars=c('beta', 'gamma', "R0","a")
+pars=c('beta', 'gamma', "R0","a","xi","eta")
 print(fit_seir, pars = pars)
 stan_dens(fit_seir, pars = pars, separate_chains = TRUE)
-traceplot(fit_seir, pars = c("gamma", "beta", "R0"))
+traceplot(fit_seir, pars = pars)
 
 
 smr_pred <- cbind(as.data.frame(summary(
@@ -104,4 +104,4 @@ ggplot(smr_pred, mapping = aes(x = t)) +
   geom_ribbon(aes(ymin = X5., ymax = X95.), fill = "blue", alpha = 0.35) +
   geom_line(mapping = aes(x = t, y = X50.) ) + 
   geom_point(mapping = aes(y = cases)) +
-  labs(x = "Day", y = "Number of students in bed")
+  labs(x = "Day", y = "Number of new cases")
