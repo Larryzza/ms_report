@@ -10,6 +10,9 @@
 //
 
 functions {
+  real switch_eta(real eta, real week_index, real xi) {
+    return(eta + (1 - eta) / (1 + exp(xi * (week_index - 5))));
+  }
   real[] sir(real t, real[] y, real[] theta, 
              real[] x_r, int[] x_i) {
       
@@ -34,22 +37,28 @@ functions {
       real epsilon2 = 1;
       real epsilon3 = 1;
       real epsilon4 = 1;
+      real eta = theta[4];
+      real xi = theta[5];
+      real week_index = theta[6];
       
-      real dV_dt = -alpha1 * V - (1 - epsilon1) * beta * I * V / N;
-      real dV3_dt = -alpha2 * V3 - (1 - epsilon2) * beta * I * V3 / N;
+      real forcing_function = switch_eta(eta, week_index, xi); // switch function
+      real beta_eff = beta * forcing_function;
       
-      real dV41_dt = -alpha3 * V41 - (1 - epsilon3) * beta * I * V41 / N;
-      real dV42_dt = -alpha4 * V42 - (1 - epsilon4) * beta * I * V42 / N;
+      real dV_dt = -alpha1 * V - (1 - epsilon1) * beta_eff * I * V / N;
+      real dV3_dt = -alpha2 * V3 - (1 - epsilon2) * beta_eff * I * V3 / N;
+      
+      real dV41_dt = -alpha3 * V41 - (1 - epsilon3) * beta_eff * I * V41 / N;
+      real dV42_dt = -alpha4 * V42 - (1 - epsilon4) * beta_eff * I * V42 / N;
       
       real dS_dt = alpha1 * V + alpha2 * V3 +
                    alpha3 * V41 + alpha4 * V42 - 
-                   beta * I * S / N;
+                   beta_eff * I * S / N;
       
-      real dE_dt = (1 - epsilon1) * beta * I * V / N +
-                   (1 - epsilon2) * beta * I * V3 / N +
-                   (1 - epsilon3) * beta * I * V41 / N + 
-                   (1 - epsilon4) * beta * I * V42 / N +
-                   beta * I * S / N - a * E;
+      real dE_dt = (1 - epsilon1) * beta_eff * I * V / N +
+                   (1 - epsilon2) * beta_eff * I * V3 / N +
+                   (1 - epsilon3) * beta_eff * I * V41 / N + 
+                   (1 - epsilon4) * beta_eff * I * V42 / N +
+                   beta_eff * I * S / N - a * E;
       
       real dI_dt =  a * E - gamma * I;
       
@@ -80,13 +89,16 @@ parameters {
   real<lower=0> beta;
   real<lower=0> a;
   real<lower=0> phi_inv;
+  real<lower=0, upper=1> eta;
+  real<lower=0,upper=1> xi_raw;
 }
 
 transformed parameters{
   vector[n_days] y_out;
   real temp[7,8];
   real phi = 1. / phi_inv;
-  real theta[3] = {beta, gamma, a};
+  real xi = xi_raw + 0.5;
+  real theta[5] = {beta, gamma, a, eta, xi};
   
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1:7] = col(to_matrix(temp), 7);
@@ -113,6 +125,8 @@ model {
   gamma ~ normal(0.3, 0.5);
   a ~ normal(0.3, 0.5);
   phi_inv ~ exponential(5);
+  eta ~ beta(2.5, 4);
+  xi_raw ~ beta(1, 1);
   //sampling distribution
   cases ~ neg_binomial_2(y_out, phi);
 }
