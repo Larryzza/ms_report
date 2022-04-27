@@ -98,7 +98,7 @@ transformed parameters{
   real temp[7,8];
   real phi = 1. / phi_inv;
   real xi = xi_raw + 0.5;
-  real theta[5] = {beta, gamma, a, eta, xi};
+  real theta[6] = {beta, gamma, a, eta, xi,1.0};
   
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1:7] = col(to_matrix(temp), 7);
@@ -109,6 +109,7 @@ transformed parameters{
   temp[7, 5] = temp[7, 5] - vac_num[1, 5];
   
   for(n in 2:n_weeks){
+    theta[6] = n;
     temp = integrate_ode_rk45(sir, temp[7], 0.0, ts, theta, x_r, x_i);
     y_out[(7*n-6):(7*n)] = col(to_matrix(temp), 7);
     temp[7, 1] = temp[7, 1] + vac_num[n, 1];                                 
