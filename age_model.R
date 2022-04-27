@@ -80,7 +80,7 @@ data_sir <- list(n_days = n_days, n_weeks = n_weeks, y0 = y0,
 
 
 # number of MCMC steps
-niter <- 2000
+niter <- 1000
 model <- stan_model("model.stan")
 fit_seir <- sampling(model,
                      data = data_sir,

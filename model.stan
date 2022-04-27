@@ -10,8 +10,8 @@
 //
 
 functions {
-  real switch_eta(real eta, real week_index, real xi) {
-    return(eta + (1 - eta) / (1 + exp(xi * (week_index - 5))));
+  real switch_eta(real eta, real week_index) {
+    return(eta + (1 - eta) / (1 + exp(week_index - 5)));
   }
   
   real[] sir(real t, real[] y, real[] theta, 
@@ -34,15 +34,14 @@ functions {
       real alpha2 = 0.0001;
       real alpha3 = 0.0001;
       real alpha4 = 0.0001;
-      real epsilon1 = 0.8;
-      real epsilon2 = 1;
-      real epsilon3 = 1;
-      real epsilon4 = 1;
+      real epsilon1 = 0.5;
+      real epsilon2 = 0.7;
+      real epsilon3 = 0.8;
+      real epsilon4 = 0.8;
       real eta = theta[4];
-      real xi = theta[5];
-      real week_index = theta[6];
+      real week_index = theta[5];
       
-      real forcing_function = switch_eta(eta, week_index, xi); // switch function
+      real forcing_function = switch_eta(eta, week_index); // switch function
       real beta_eff = beta * forcing_function;
       
       real dV_dt = -alpha1 * V - (1 - epsilon1) * beta_eff * I * V / N;
@@ -91,15 +90,13 @@ parameters {
   real<lower=0> a;
   real<lower=0> phi_inv;
   real<lower=0, upper=1> eta;
-  real<lower=0,upper=1> xi_raw;
 }
 
 transformed parameters{
   vector[n_days] y_out;
   real temp[7,8];
   real phi = 1. / phi_inv;
-  real xi = xi_raw + 0.5;
-  real theta[6] = {beta, gamma, a, eta, xi,1.0};
+  real theta[5] = {beta, gamma, a, eta, 1.0};
   
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1:7] = col(to_matrix(temp), 7);
@@ -110,7 +107,7 @@ transformed parameters{
   temp[7, 5] = temp[7, 5] - vac_num[1, 5];
   
   for(n in 2:n_weeks){
-    theta[6] = n;
+    theta[5] = n;
     temp = integrate_ode_rk45(sir, temp[7], 0.0, ts, theta, x_r, x_i);
     y_out[(7*n-6):(7*n)] = col(to_matrix(temp), 7);
     temp[7, 1] = temp[7, 1] + vac_num[n, 1];                                 
@@ -123,12 +120,11 @@ transformed parameters{
 
 model {
   //priors
-  beta ~ normal(3, 2);
-  gamma ~ normal(0.3, 0.5);
-  a ~ normal(0.3, 0.5);
+  beta ~ normal(2, 1);
+  gamma ~ normal(0.5, 0.3);
+  a ~ normal(0.3, 0.3);
   phi_inv ~ exponential(5);
-  eta ~ beta(2.5, 4);
-  xi_raw ~ beta(1, 1);
+  eta ~ beta(2, 4);
   //sampling distribution
   cases ~ neg_binomial_2(y_out, phi);
 }
