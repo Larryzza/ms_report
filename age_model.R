@@ -57,7 +57,7 @@ vac_num <- cbind(df$weekly_second_dose[df$Age_group=="0-59"]+
 vac_num[,1] <- vac_num[,1]-vac_num[,2]
 vac_num[,2] <- vac_num[,2]-vac_num[,3]-vac_num[,4]
 # total population
-N <- 9217000; E1 <- 100
+N <- 9217000; I1 <- 10
 
 # times
 n_days <- length(cases) 
@@ -70,7 +70,7 @@ t <- t[-1]
 
 y0 <- c(V=vac21+vac22-vac31-vac32, 
         V3 = vac31+vac32, V41 = 0, V42 = 0, 
-        S = N-E1-vac21-vac22, E = E1, I=0, R = 0)
+        S = N-I1-vac21-vac22, E = 0, I=I1, R = 0)
 
 # data for Stan
 data_sir <- list(n_days = n_days, n_weeks = n_weeks, y0 = y0, 
@@ -80,28 +80,46 @@ data_sir <- list(n_days = n_days, n_weeks = n_weeks, y0 = y0,
 
 
 # number of MCMC steps
-niter <- 1000
+niter <- 10000
 model <- stan_model("model.stan")
-fit_seir <- sampling(model,
+
+initf <- function(chain_id = 1) {
+  set.seed(chain_id*100)
+  list(beta = rnorm(n = 1, mean = 2, sd = 1), 
+       eta = rbeta(n = 1, shape1 = 2, shape2 = 4), 
+       epsilon1 = 0.3,
+       epsilon2 = 0.6,
+       epsilon3 = 0.7,
+       epsilon4 = 0.7)
+} 
+
+# generate a list of lists to specify initial values
+n_chains <- 4
+init_ll <- lapply(1:n_chains, function(id) initf(chain_id = id))
+
+fit_seir <- sampling(model, init = init_ll,
                      data = data_sir,
                      iter = niter,
-                     chains = 3, 
+                     chains = 4, 
                      seed = 1)
+
 saveRDS(fit_seir, "fit_seir.rds")
-pars=c('beta', 'gamma', "R0","a","xi","eta")
+
+pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","R0","beta")
 print(fit_seir, pars = pars)
 stan_dens(fit_seir, pars = pars, separate_chains = TRUE)
 traceplot(fit_seir, pars = pars)
 
-
 smr_pred <- cbind(as.data.frame(summary(
   fit_seir, pars = "pred_cases", 
-  probs = c(0.05, 0.5, 0.95))$summary), t,
-  cases = cases)
+  probs = c(0.05, 0.5, 0.95))$summary)[-c(111:112),], t=t[-c(1:2)],
+  cases = cases[-c(1:2)])
 colnames(smr_pred) <- make.names(colnames(smr_pred)) # to remove % in the col names
 
 ggplot(smr_pred, mapping = aes(x = t)) +
   geom_ribbon(aes(ymin = X5., ymax = X95.), fill = "blue", alpha = 0.35) +
   geom_line(mapping = aes(x = t, y = X50.) ) + 
   geom_point(mapping = aes(y = cases)) +
+  #scale_y_sqrt()+
   labs(x = "Day", y = "Number of new cases")
+
