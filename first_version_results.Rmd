@@ -21,6 +21,8 @@ h1,h2,h3,h4,h5,h6{
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE)
 rm(list = ls())
+library(rstan)
+library(bayesplot)
 library(tidyverse)
 library(kableExtra)
 ```
@@ -28,17 +30,23 @@ library(kableExtra)
 
 ## Goal
 
-Build a SEIR model to investigate 4th dose vaccine protecting rate for different age group (0-59 and 60+), and compare it with 3rd and 2nd vaccine protecting rate.
+Build a SEIR model to investigate 4th dose vaccine protection rate for different age group (0-59 and 60+), and compare it with 3rd and 2nd vaccine protection rate against omicron.
 
 ## Model
 
 ### Assumption
 
-`Homogeneous population`: All individuals in the same compartment is subject to the same hazards.
+- All individuals in the same compartment is subject to the same hazards.
 
-`Well-mixing population`: All susceptible have the same risk of getting infected.
+- All susceptible have the same risk of getting infected.
 
-`Birth`, `death` and `COVID mortality` is not considered yet.
+- Birth, death and COVID mortality is not considered yet.
+
+- Immune waning rate $\alpha=0.0001$.
+
+- Vaccine protection rate remain unchanged during modeling period.
+
+- All newly reported COVID cases after 2021-11-28 are cases of the omicron COVID variant.
 
 ### Equations
 
@@ -51,7 +59,7 @@ $$\begin{aligned}
 \frac{dR}{dt}& =  \gamma * I
 \end{aligned}$$
 
-in which $c= \eta + (1 - \eta) / (1 + \exp(n_{week} - 5))$. $n_{week}$ means number of weeks since the 2021-12-05.
+in which $c= \eta + (1 - \eta) / (1 + \exp(n_{week} - n_{policy} - n_{shift}))$.  $\eta$ represents Government measures (other than vaccine) and public action which can reduce transmission rate. $n_{week}$ means number of weeks since the 2021-11-28. Here we set week of introduction of control measures $n_{policy}=6$, since the government implement 4 dose vaccine at week 5 (2022-01-02). In addition, we assume shift of public awareness $n_{shift}=1$, i.e., it takes 1 more week for public to be alerted to the risk of Omicron and take actions.
 
 ### Parameters
 
@@ -68,42 +76,94 @@ table.par <- data.frame(Parameter=c("Population size",
                                     "Initial infectious group",
                                     "Initial recovered group",
                                     "immune waning rate",
-                                    "First 2 dose immune protecting rate",
-                                    "3 dose immune protecting rate",
-                                    "4 dose immune protecting rate(0 - 59 years)",
-                                    "4 dose immune protecting rate(60 + years)",
+                                    "First 2 dose vaccine protection rate",
+                                    "3 dose vaccine protection rate",
+                                    "4 dose vaccine protection rate(0 - 59 years)",
+                                    "4 dose vaccine protection rate(60 + years)",
                                     "Transmission rate",
-                                    "Government/public action",
-                                    "Inverse latent period",
-                                    "Inverse infectious period",
+                                    "Government measures/
+                                    public action (factor to reduce transmission rate)",
+                                    "latent period",
+                                    "infectious period",
                                     "Dispersion parameter"),
                         Notation=c("N","V_1","V_2","V_3","V_4", 
                                    "S_0","E_0","I_0","R_0",
                                    "alpha","epsilon1","epsilon2",
                                    "epsilon3","epsilon4", "beta",
-                                   "eta","sigma","gamma","phi"),
+                                   "eta","1/sigma","1/gamma","phi"),
                         `Value_or_prior`=c(9217000,1691392,4065022,0,
                                            0,3460486,0,100,0,0.0001,
-                                           "normal(0.3, 0.3)",
-                                           "normal(0.6, 0.3)",
-                                           "normal(0.7, 0.3)",
-                                           "normal(0.7, 0.3)",
-                                           "normal(0.5, 0.3)","beta(2, 4)",
-                                           "normal(0.3, 0.3)","normal(0.5, 0.3)",
+                                           "normal(0.3, 0.2)",
+                                           "normal(0.6, 0.2)",
+                                           "normal(0.7, 0.2)",
+                                           "normal(0.7, 0.2)",
+                                           "normal(2, 1)","beta(2, 4)",
+                                           "3","5",
                                            "exp(0.6)"))
 table.par %>%
   kbl(caption = "Summary table for parameters") %>%
   kable_classic(full_width = T, html_font = "Cambria")
 ```
 
-Note that here we assume that 4 dose and 3 dose immune protecting rate is always higher than that of 3 dose and 2 dose, respectively.
+Note that here we assume that 4 dose and 3 dose immune protection rate is always higher than that of 3 dose and 2 dose, respectively.
 
 ### Data and Fitting
 
-First Israeli Omicron COVID case was diagnosed on November 28. Considering it take few days for Omicron to be dominant variant in Israel, we collected the reported COVID case during 2021-12-5 and 2022- - from Israel ministry of health. In addition, we obtained weekly number of vaccinations (2nd, 3rd and 4th dose). We assumed that daily COVID cases are distributed with negative binomial distribution with a dispersion parameter $\phi$. Then we fit reported number of COVID cases to the model using Hamiltonian Monte Carlo (HMC) method. We ran 4 HMC chains with random initial values for a total number of 10,000 iterations per chain, discarding the first 5,000 iterations (burn-in). 
+First Israeli Omicron COVID case was diagnosed on November 28. Considering it take few days for Omicron to be dominant variant in Israel, we collected the reported COVID case during 2021-11-28 and 2022-03-07 from Israel ministry of health. In addition, we obtained weekly number of vaccinations (2nd, 3rd and 4th dose). We assumed that number of daily COVID cases follows negative binomial distribution with mean $\mu$ as simulated from our model and a dispersion parameter $\phi$. Then we fit reported number of COVID cases to the model using Hamiltonian Monte Carlo (HMC) method. We ran 4 HMC chains with random initial values for a total number of 10,000 iterations per chain, discarding the first 5,000 iterations (burn-in). 
 
 All data analyses were conducted using the R version 4.1.3 and Stan version . Datasets can be found at https://data.gov.il/dataset/covid-19 and codes used in this study can be found in the GitHub repository https://github.com/Larryzza/ms_report. 
 
 ## results
+
+```{r,echo=FALSE}
+fit_seir <- readRDS("fit_seir.rds")
+pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","R0","beta")
+print(fit_seir, pars = pars)
+```
+
+As we can tell from the summary table, estimated vaccine protection rate of second dose and third dose are 34% (3%, 73%) and 72% (40%, 98%). The fourth dose has a protection rate 86% (58%, 99%) and 87% (59%, 100%) for age group 0-59 years and 60+ years, respectively. Protection rates of fourth dose do not differ significantly between age groups. In addition, protection rates of fourth dose are not superior than that of third dose, with a significance level 0.05.
+
+```{r}
+stan_dens(fit_seir, pars = pars, separate_chains = TRUE)
+traceplot(fit_seir, pars = pars)
+```
+
+
+As we can tell from the traceplot, three chains is lack of convergence.
+
+```{r,echo=FALSE,message=FALSE}
+df_daily <- read_csv("daily cases.csv")
+cases <- df_daily$case
+t<-1:112
+pred_case <- cbind(as.data.frame(summary(
+  fit_seir, pars = "pred_cases", 
+  probs = c(0.05, 0.5, 0.95))$summary), t=t,
+  cases = cases, date = as.Date(df_daily$date, "%d-%m-%Y"))
+pred_case <- pred_case %>% filter(date<="2022-03-07")
+colnames(pred_case) <- make.names(colnames(pred_case))
+
+ggplot(pred_case, mapping = aes(x = date)) +
+  geom_ribbon(aes(ymin = X5., ymax = X95.), fill = "orange", alpha = 0.35) +
+  geom_line(mapping = aes(x = date, y = X50.) , color = "red", alpha = 0.7) + 
+  geom_point(mapping = aes(y = cases), color = "purple", alpha = 0.9) +
+  labs(x = "Day", y = "Number of new cases")+theme_minimal()+
+  theme(legend.title=element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank())
+```
+
+Above plot shows the simulated cases based on our model. As we can tell from this figure, predicted average new cases are largely consistent with the observations.
+
+## next step
+
+- consider a more precise number of omicron cases at the beginning period
+
+- run longer chains 
+
+- add more uncertainty to the model (e.g. set a prior range for time lag rather than a constant)
+
+- include second wave (2022-3-19 ~ 2022-4-8) in the model
 
 <div class="tocify-extend-page" data-unique="tocify-extend-page" style="height: 0;"></div>
