@@ -19,7 +19,7 @@ functions {
       real N = x_i[1];
       real beta = theta[1];
       real gamma = theta[2];
-      real a = theta[3];
+      real sigma = theta[3];
       //real alpha1 = 0.0001;
       //real alpha2 = 0.0001;
       //real alpha3 = 0.0001;
@@ -31,26 +31,25 @@ functions {
       real epsilon3 = theta[8];
       real epsilon4 = theta[9];
       
-      real forcing_function = switch_eta(eta, week_index); // switch function
-      real beta_eff = beta * forcing_function;
+      real c = switch_eta(eta, week_index); // switch function
       
-      real dV_dt = -0.0001 * V - (1 - epsilon1) * beta_eff * I * V / N;
-      real dV3_dt = -0.0001 * V3 - (1 - epsilon2) * beta_eff * I * V3 / N;
+      real dV_dt = -0.0001 * V - (1 - epsilon1) * beta * c * I * V / N;
+      real dV3_dt = -0.0001 * V3 - (1 - epsilon2) * beta * c * I * V3 / N;
       
-      real dV41_dt = -0.0001 * V41 - (1 - epsilon3) * beta_eff * I * V41 / N;
-      real dV42_dt = -0.0001 * V42 - (1 - epsilon4) * beta_eff * I * V42 / N;
+      real dV41_dt = -0.0001 * V41 - (1 - epsilon3) * beta * c * I * V41 / N;
+      real dV42_dt = -0.0001 * V42 - (1 - epsilon4) * beta * c * I * V42 / N;
       
       real dS_dt = 0.0001 * V + 0.0001 * V3 +
                    0.0001 * V41 + 0.0001 * V42 - 
-                   beta_eff * I * S / N;
+                   beta * c * I * S / N;
       
-      real dE_dt = (1 - epsilon1) * beta_eff * I * V / N +
-                   (1 - epsilon2) * beta_eff * I * V3 / N +
-                   (1 - epsilon3) * beta_eff * I * V41 / N + 
-                   (1 - epsilon4) * beta_eff * I * V42 / N +
-                   beta_eff * I * S / N - a * E;
+      real dE_dt = (1 - epsilon1) * beta * c * I * V / N +
+                   (1 - epsilon2) * beta * c * I * V3 / N +
+                   (1 - epsilon3) * beta * c * I * V41 / N + 
+                   (1 - epsilon4) * beta * c * I * V42 / N +
+                   beta * c * I * S / N - sigma * E;
       
-      real dI_dt =  a * E - gamma * I;
+      real dI_dt =  sigma * E - gamma * I;
       
       real dR_dt =  gamma * I;
       
@@ -77,7 +76,7 @@ transformed data {
 parameters {
   //real<lower=0> gamma;
   real<lower=0> beta;
-  //real<lower=0> a;
+  //real<lower=0> sigma;
   //real<lower=0> phi_inv;
   real<lower=0, upper=1> eta;
   real<lower=0, upper=1> epsilon1;
@@ -118,7 +117,7 @@ model {
   //priors
   beta ~ normal(2, 1);
   //gamma ~ normal(0.5, 0.3);
-  //a ~ normal(0.3, 0.3) T[0,1];
+  //sigma ~ normal(0.3, 0.3) T[0,1];
   //phi_inv ~ exponential(5);
   eta ~ beta(2, 4);
   epsilon1 ~ normal(0.3, 0.2);
@@ -126,7 +125,7 @@ model {
   epsilon3 ~ normal(0.7, 0.2) T[epsilon2,1];
   epsilon4 ~ normal(0.7, 0.2) T[epsilon2,1];
   //sampling distribution
-  for(i in 22:93){
+  for(i in 28:n_days){
     target += neg_binomial_2_lpmf(cases[i] | y_out[i], phi);
     //target += poisson_lpmf(cases[i] | y_out[i]);
   } 
