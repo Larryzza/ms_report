@@ -6,12 +6,37 @@ library(tidyverse)
 options(mc.cores=parallel::detectCores(logical = F))
 rstan_options(auto_write = TRUE)
 rstan_options(javascript=FALSE)
-## Load data
+## set variable we need and define functions
 need_var <- c("first_week_day", "Gender", "age_group", 
               "weekly_cases", "weekly_first_dose",
               "weekly_second_dose", "weekly_third_dose", "weekly_fourth_dose")
 start_point <- "2021-11-28"
 end_point <- "2022-03-05"
+.sort_df <- function(x){
+  x <- str_replace_all(x, "<", "")
+  x <- ifelse(is.na(x)==T,0,x)
+  return(as.numeric(x))
+}
+
+## Load data
+df_case_vac <- read_csv("cases-among-vaccinated-211 (2).csv",
+                        col_types = cols(.default = "c"))
+df_case_vac[,c(3:17)] <- apply(as.matrix(df_case_vac[,c(3:17)]), 2, .sort_df)
+df_case_vac$pos_2_dose <- rowSums(df_case_vac[,c(3:11)])
+df_case_vac$pos_3and4_dose <- rowSums(df_case_vac[,c(12:16)])
+df_case_vac$age_group <- "0-59"
+temp <- grep("60|70|80|90",df_case_vac$Age_group)
+df_case_vac$age_group[temp] <- "60+"
+df_case_vac$date <- substr(df_case_vac$Week, 1, 10)
+
+df_dose_case <- df_case_vac %>%
+  filter(age_group!="NULL", date<=end_point, date>=start_point) %>% 
+  group_by(date, age_group) %>% 
+  summarise(weekly_2_dose_pos=sum(pos_2_dose),
+            weekly_3and4_dose_pos=sum(pos_3and4_dose),
+            weekly_0_dose_pos=sum(Sum_positive_without_vaccination))
+
+
 
 df_daily <- read_csv("daily cases.csv") %>% 
   mutate(date=as.Date(date, "%d-%m-%Y")) %>% 
@@ -20,10 +45,7 @@ df_age_gender_vac <- read_csv("corona_age_and_gender_ver_00278.csv",
                               col_types = cols(.default = "c")) %>% 
                               select(all_of(need_var))
 df_age_gender_vac[,c(4:8)] <- apply(as.matrix(df_age_gender_vac[,c(4:8)]),
-                                    2, function(x){
-                                      x <- str_replace_all(x, "<", "")
-                                      x <- ifelse(is.na(x)==T,0,x)
-                                      return(as.numeric(x))})
+                                    2, .sort_df)
 df_age_gender_vac$Age_group <- "0-59"
 temp <- grep("60|65|70|75|80",df_age_gender_vac$age_group)
 df_age_gender_vac$Age_group[temp] <- "60+"
