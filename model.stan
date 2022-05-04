@@ -1,7 +1,7 @@
 
 functions {
-  real switch_eta(real eta, real week_index) {
-    return(eta + (1 - eta) / (1 + exp(week_index - 6)));
+  real switch_eta(real eta, real week_index, real k) {
+    return(eta + (1 - eta) / (1 + k * exp(week_index - 7)));
   }
   
   real[] sir(real t, real[] y, real[] theta, 
@@ -30,8 +30,9 @@ functions {
       real epsilon2 = theta[7];
       real epsilon3 = theta[8];
       real epsilon4 = theta[9];
+      real k = theta[10];
       
-      real c = switch_eta(eta, week_index); // switch function
+      real c = switch_eta(eta, week_index, k); // switch function
       
       real dV_dt = -0.0001 * V - (1 - epsilon1) * beta * c * I * V / N;
       real dV3_dt = -0.0001 * V3 - (1 - epsilon2) * beta * c * I * V3 / N;
@@ -79,19 +80,21 @@ parameters {
   //real<lower=0> sigma;
   //real<lower=0> phi_inv;
   real<lower=0, upper=1> eta;
-  real<lower=0, upper=1> epsilon1;
-  real<lower=0, upper=1> epsilon2;
-  real<lower=0, upper=1> epsilon3;
-  real<lower=0, upper=1> epsilon4;
+  //real<lower=0, upper=1> epsilon1;
+  //real<lower=0, upper=1> epsilon2;
+  //real<lower=0, upper=1> epsilon3;
+  //real<lower=0, upper=1> epsilon4;
+  real<lower=0> k;
 }
 
 transformed parameters{
   vector[n_days] y_out;
   real temp[7,8];
   real gamma = 1./5;
-  real phi = 1/exp(-0.6);
-  real theta[9] = {beta, gamma, 1./3, eta, 1.0,
-                   epsilon1, epsilon2, epsilon3, epsilon4};
+  real phi = 10;
+  real theta[10] = {beta, gamma, 1./3, eta, 1.0,
+                    0.36, 0.68, 0.82, 0.83,k};
+                   //epsilon1, epsilon2, epsilon3, epsilon4,k};
 
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1:7] = col(to_matrix(temp), 7);
@@ -116,14 +119,15 @@ transformed parameters{
 model {
   //priors
   beta ~ normal(2, 1);
+  k ~ normal(1, 1);
   //gamma ~ normal(0.5, 0.3);
   //sigma ~ normal(0.3, 0.3) T[0,1];
   //phi_inv ~ exponential(5);
   eta ~ beta(2, 4);
-  epsilon1 ~ normal(0.3, 0.2);
-  epsilon2 ~ normal(0.6, 0.2) T[epsilon1,1];
-  epsilon3 ~ normal(0.7, 0.2) T[epsilon2,1];
-  epsilon4 ~ normal(0.7, 0.2) T[epsilon2,1];
+  //epsilon1 ~ normal(0.3, 0.2);
+  //epsilon2 ~ normal(0.6, 0.2) T[epsilon1,1];
+  //epsilon3 ~ normal(0.7, 0.2) T[epsilon2,1];
+  //epsilon4 ~ normal(0.7, 0.2) T[epsilon2,1];
   //sampling distribution
   for(i in 28:n_days){
     target += neg_binomial_2_lpmf(cases[i] | y_out[i], phi);

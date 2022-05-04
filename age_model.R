@@ -1,6 +1,7 @@
 rm(list=ls())
 ## Load packages
 library(rstan) 
+library(shinystan)
 library(tidyverse)
 options(mc.cores=parallel::detectCores(logical = F))
 rstan_options(auto_write = TRUE)
@@ -82,17 +83,18 @@ data_sir <- list(n_days = n_days, n_weeks = n_weeks, y0 = y0,
 
 
 # number of MCMC steps
-niter <- 100000
+niter <- 10000
 model <- stan_model("model.stan")
 
 initf <- function(chain_id = 1) {
-  set.seed(chain_id^2)
+  set.seed(chain_id)
   list(beta = rnorm(n = 1, mean = 2, sd = 1), 
        eta = rbeta(n = 1, shape1 = 2, shape2 = 4), 
        epsilon1 = 0.3,
        epsilon2 = 0.6,
        epsilon3 = 0.7,
-       epsilon4 = 0.7)
+       epsilon4 = 0.7,
+       k = 1)
 } 
 
 # generate a list of lists to specify initial values
@@ -107,7 +109,8 @@ fit_seir <- sampling(model, init = init_ll,
 
 saveRDS(fit_seir, "fit_seir.rds")
 
-pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","R0","beta")
+pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","R0","beta","k")
+pars=c("eta","R0","beta","k")
 print(fit_seir, pars = pars)
 stan_dens(fit_seir, pars = pars, separate_chains = TRUE)
 traceplot(fit_seir, pars = pars)
@@ -125,3 +128,6 @@ ggplot(smr_pred, mapping = aes(x = t)) +
   #scale_y_sqrt()+
   labs(x = "Day", y = "Number of new cases")
 
+#launch_shinystan(fit_seir)
+#divergent <- get_sampler_params(fit_seir, inc_warmup=FALSE)[[1]][,'divergent__']
+#pairs(fit_seir)
