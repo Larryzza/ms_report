@@ -1,0 +1,182 @@
+
+functions {
+
+  real switch_eta(real eta, real week_index, real k, real day_shift) {
+    return(eta + (1 - eta) / (1 + k * exp(week_index - day_shift)));
+    //return(eta + (1 - eta) / (1 + exp(week_index - 7)));
+  }
+  
+  real[] sir(real t, real[] y, real[] theta, 
+             real[] x_r, int[] x_i) {
+      
+      real V2 = y[1];
+      real V31 = y[2];
+      real V41 = y[3];
+      real V32 = y[4];
+      real V42 = y[5];
+      real S = y[6];
+      real E = y[7];
+      real EV2 = y[8];
+      real EV31 = y[9];
+      real EV32 = y[10];
+      real I = y[11];
+      real IV2 = y[12];
+      real IV31 = y[13];
+      real IV32 = y[14];
+      //real R = y[11];
+      
+      real N = x_i[1];
+      real beta = theta[1];
+      real gamma = theta[2];
+      real sigma = theta[3];
+      //real alpha1 = 0.0001;
+      //real alpha2 = 0.0001;
+      //real alpha3 = 0.0001;
+      //real alpha4 = 0.0001;
+      real eta = theta[4];
+      real week_index = theta[5];
+      real epsilon1 = theta[6];
+      real epsilon2 = theta[7];
+      real epsilon3 = theta[8];
+      real epsilon4 = theta[9];
+      real epsilon5 = theta[10];
+      real k = theta[11];
+      real day_shift = theta[12];
+      real d = theta[13];
+      
+      real c = switch_eta(eta, week_index, k, day_shift); // switch function with k
+      //real c = switch_eta(eta, week_index); // switch function without k
+      
+      real dV2_dt = - (1 - epsilon1) * beta * c * (I + IV2 + IV31 + IV32) * V2 / N;
+      real dV31_dt = - (1 - epsilon2) * beta * c * (I + IV2 + IV31 + IV32) * V31 / N;
+      real dV41_dt = - (1 - epsilon3) * beta * c * (I + IV2 + IV31 + IV32) * V41 / N;
+      real dV32_dt = - (1 - epsilon4) * beta * c * (I + IV2 + IV31 + IV32) * V32 / N;
+      real dV42_dt = - (1 - epsilon5) * beta * c * (I + IV2 + IV31 + IV32) * V42 / N;
+      
+      real dS_dt = - d * beta * c * (I + IV2 + IV31 + IV32) * S / N;
+      
+      real dE_dt = d * beta * c * (I + IV2 + IV31 + IV32) * S / N - sigma * E;
+      real dEV2_dt = (1 - epsilon1) * beta * c * (I + IV2 + IV31 + IV32) * V2 / N  - sigma * EV2;
+      real dEV31_dt = (1 - epsilon2) * beta * c * (I + IV2 + IV31 + IV32) * V31 / N + 
+                     (1 - epsilon3) * beta * c * (I + IV2 + IV31 + IV32) * V41 / N - sigma * EV31;
+      real dEV32_dt = (1 - epsilon4) * beta * c * (I + IV2 + IV31 + IV32) * V32 / N + 
+                     (1 - epsilon5) * beta * c * (I + IV2 + IV31 + IV32) * V42 / N - sigma * EV32;
+                     
+      real dI_dt =  sigma * E - gamma * I;
+      real dIV2_dt =  sigma * EV2 - gamma * IV2;
+      real dIV31_dt =  sigma * EV31 - gamma * IV31;
+      real dIV32_dt =  sigma * EV32 - gamma * IV32;
+      
+      //real dR_dt =  gamma * I + gamma * IV2 + gamma * IV3;
+      
+      return {dV2_dt, dV31_dt, dV41_dt, dV32_dt, dV42_dt, dS_dt, 
+              dE_dt, dEV2_dt, dEV31_dt, dEV32_dt, 
+              dI_dt, dIV2_dt, dIV31_dt, dIV32_dt};
+  }
+  
+  real[] col_sums(matrix X) {
+     real s[4] ;
+     int col_index[4] = {11, 12, 13, 14};
+     for (j in 1:4){
+       s[j] = sum(col(X, col_index[j]));
+     } 
+	   return s ;
+  }
+}
+
+data {
+  int<lower=1> n_weeks;
+  real y0[14]; 
+  real ts[7];
+  int N;
+  int cases[n_weeks, 4];
+  real vac_num[n_weeks, 6];
+}
+
+transformed data {
+  real x_r[0];
+  int x_i[1] = { N };
+}
+
+parameters {
+  //real<lower=0> gamma;
+  real<lower=0> beta;
+  //real<lower=0> sigma;
+  real<lower=0> phi_inv;
+  real day_shift;
+  real<lower=0, upper=1> eta;
+  real<lower=0, upper=1> epsilon1;
+  real<lower=0, upper=1> epsilon2;
+  real<lower=0, upper=1> epsilon3;
+  real<lower=0, upper=1> epsilon4;
+  real<lower=0, upper=1> epsilon5;
+  real<lower=0, upper=1> d;
+  real<lower=0> k;
+}
+
+transformed parameters{
+  real y_out[n_weeks, 4];
+  real temp[7,14];
+  real gamma = 1./5;
+  real phi = 1./phi_inv;
+  real theta[13] = {beta, gamma, 1./3, eta, 1.0,
+                   epsilon1, epsilon2, epsilon3, epsilon4, epsilon5,
+                   k, day_shift , d};
+
+  temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
+  y_out[1] = col_sums(to_matrix(temp));
+  temp[7, 1] = temp[7, 1] + vac_num[1, 1];                                 
+  temp[7, 2] = temp[7, 2] + vac_num[1, 2];
+  temp[7, 3] = temp[7, 3] + vac_num[1, 4];  
+  temp[7, 4] = temp[7, 4] + vac_num[1, 3];
+  temp[7, 5] = temp[7, 5] + vac_num[1, 5];
+  temp[7, 6] = temp[7, 6] - vac_num[1, 6];
+  //print(temp);
+  
+  for(n in 2:n_weeks){
+    theta[5] = n;
+    temp = integrate_ode_rk45(sir, temp[7], 0.0, ts, theta, x_r, x_i);
+    y_out[n] = col_sums(to_matrix(temp));
+    temp[7, 1] = temp[7, 1] + vac_num[n, 1];                                 
+    temp[7, 2] = temp[7, 2] + vac_num[n, 2];
+    temp[7, 3] = temp[7, 3] + vac_num[n, 4];  
+    temp[7, 4] = temp[7, 4] + vac_num[n, 3];
+    temp[7, 5] = temp[7, 5] + vac_num[n, 5];
+    temp[7, 6] = temp[7, 6] - vac_num[n, 6];
+    //print(temp);
+  }
+}
+
+model {
+  //priors
+  beta ~ normal(2, 1) T[0,];
+  k ~ normal(1, 2) T[0,];
+  day_shift ~ normal(6, 3);
+  //gamma ~ normal(0.5, 0.3);
+  //sigma ~ normal(0.3, 0.3) T[0,1];
+  d ~ normal(0.7, 0.2) T[0,1];
+  phi_inv ~ exponential(10);
+  eta ~ beta(2, 4);
+  epsilon1 ~ normal(0.1, 0.2) T[0,1];
+  epsilon2 ~ normal(0.3, 0.2) T[epsilon1,1];
+  epsilon3 ~ normal(0.5, 0.2) T[epsilon2,1];
+  epsilon4 ~ normal(0.3, 0.2) T[epsilon1,1];
+  epsilon5 ~ normal(0.5, 0.2) T[epsilon4,1];
+  //sampling distribution
+  for(i in 4:n_weeks){
+    for(j in 1:4){
+      target += neg_binomial_2_lpmf(cases[i,j] | y_out[i,j], phi);
+    }
+  } 
+}
+
+generated quantities {
+  real R0 = beta / gamma;
+  real pred_cases[n_weeks, 4];
+  for(i in 1:n_weeks){
+    for(j in 1:4){
+      pred_cases[i,j] = neg_binomial_2_rng(y_out[i,j], phi);
+    }
+  } 
+}
+
