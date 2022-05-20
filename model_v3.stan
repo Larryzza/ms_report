@@ -1,8 +1,8 @@
 
 functions {
 
-  real switch_eta(real eta, real week_index, real k, real day_shift) {
-    return(eta + (1 - eta) / (1 + k * exp(week_index - 6 - day_shift)));
+  real switch_eta(real eta, real week_index, real k, real week_shift) {
+    return(eta + (1 - eta) / (1 + k * exp(week_index - 6 - week_shift)));
     //return(eta + (1 - eta) / (1 + exp(week_index - 7)));
   }
   
@@ -35,10 +35,10 @@ functions {
       real epsilon2 = theta[7];
       real epsilon3 = theta[8];
       real k = theta[9];
-      real day_shift = theta[10];
+      real week_shift = theta[10];
       real d = theta[11];
       
-      real c = switch_eta(eta, week_index, k, day_shift); // switch function with k
+      real c = switch_eta(eta, week_index, k, week_shift); // switch function with k
       //real c = switch_eta(eta, week_index); // switch function without k
       
       real dV2_dt = - (1 - epsilon1) * beta * c * (I + IV2 + IV3) * V2 / N;
@@ -46,6 +46,9 @@ functions {
       real dV4_dt = - (1 - epsilon3) * beta * c * (I + IV2 + IV3) * V4 / N;
       
       real dS_dt = - d * beta * c * (I + IV2 + IV3) * S / N;
+      real dS2_dt = - d * beta * c * (I + IV2 + IV3) * S / N;
+      real dS3_dt = - d * beta * c * (I + IV2 + IV3) * S / N;
+      real dS4_dt = - d * beta * c * (I + IV2 + IV3) * S / N;
       
       real dE_dt = d * beta * c * (I + IV2 + IV3) * S / N - sigma * E;
       real dEV2_dt = (1 - epsilon1) * beta * c * (I + IV2 + IV3) * V2 / N  - sigma * EV2;
@@ -90,7 +93,7 @@ parameters {
   real<lower=0> beta;
   //real<lower=0> sigma;
   real<lower=0> phi_inv;
-  real day_shift;
+  real week_shift;
   real<lower=0, upper=1> eta;
   real<lower=0, upper=1> epsilon1;
   real<lower=0, upper=1> epsilon2;
@@ -108,7 +111,7 @@ transformed parameters{
   real phi = 1./phi_inv;
   real theta[11] = {beta, gamma, 1./3, eta, 1.0,
                    epsilon1, epsilon2, epsilon3, 
-                   k, day_shift , d};
+                   k, week_shift , d};
 
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1] = col_sums(to_matrix(temp));
@@ -134,7 +137,7 @@ model {
   //priors
   beta ~ normal(2, 1) T[0,];
   k ~ normal(1, 2) T[0,];
-  day_shift ~ exponential(1);
+  week_shift ~ normal(0, 2);
   //gamma ~ normal(0.5, 0.3);
   //sigma ~ normal(0.3, 0.3) T[0,1];
   d ~ normal(0.7, 0.2) T[0,1];

@@ -46,12 +46,12 @@ case_group2_2 <- df_dose_case$weekly_2_dose_pos[which(df_dose_case$age_group!="0
 case_group2_3and4 <- df_dose_case$weekly_3and4_dose_pos[which(df_dose_case$age_group!="0-59")]
 
 # model v3
-case_grouped <- cbind(case_group1_0+case_group2_0, case_group1_2+case_group2_2, 
-                      case_group1_3and4+case_group2_3and4)
-
-# model v4
 #case_grouped <- cbind(case_group1_0+case_group2_0, case_group1_2+case_group2_2, 
-#                      case_group1_3and4, case_group2_3and4)
+#                      case_group1_3and4+case_group2_3and4)
+
+# model v4 & v5
+case_grouped <- cbind(case_group1_0+case_group2_0, case_group1_2+case_group2_2, 
+                      case_group1_3and4, case_group2_3and4)
 
 df_daily <- read_csv("daily cases.csv") %>% 
   mutate(date=as.Date(date, "%d-%m-%Y")) %>% 
@@ -75,14 +75,44 @@ df <- df_age_gender_vac %>%
             weekly_third_dose=sum(weekly_third_dose),
             weekly_fourth_dose=sum(weekly_fourth_dose))
 
-vac11 <- df$weekly_first_dose[df$date<start_point&df$Age_group=="0-59"] %>% sum
-vac12 <- df$weekly_first_dose[df$date<start_point&df$Age_group!="0-59"] %>% sum
+### waning calculation 
 
-vac21 <- df$weekly_second_dose[df$date<start_point&df$Age_group=="0-59"] %>% sum
+### 2nd dose
+### 65.5% (95% CI, 63.9 to 67.0) 2 to 4 weeks
+### 8.8% (95% CI, 7.0 to 10.5) after 25 or more weeks 
+
+1-(8.8/65.5)^(1/(22*7))
+0.0129
+0.9871
+### 3rd dose
+### 67.2% (95% CI, 66.5 to 67.8)
+### 45.7% (95% CI, 44.7 to 46.7) after 10 or more weeks
+1-(45.7/67.2)^(1/(7*7))
+0.0078
+0.9922
+
+remove_waning <- function(temp,dose2=T){
+  w <- 0.9922
+  if(dose2==T){w <- 0.9871}
+  temp_sum <- sum(temp)
+  for(i in 2:length(temp)){
+    temp[i] <- temp[i-1]*w + temp[i]
+  }
+  return(c(round(temp[i]), round(temp_sum - temp[i])))
+}
+
+'vac21 <- df$weekly_second_dose[df$date<start_point&df$Age_group=="0-59"] %>% sum
 vac22 <- df$weekly_second_dose[df$date<start_point&df$Age_group!="0-59"] %>% sum
 
 vac31 <- df$weekly_third_dose[df$date<start_point&df$Age_group=="0-59"] %>% sum
-vac32 <- df$weekly_third_dose[df$date<start_point&df$Age_group!="0-59"] %>% sum
+vac32 <- df$weekly_third_dose[df$date<start_point&df$Age_group!="0-59"] %>% sum'
+
+vac21 <- remove_waning(df$weekly_second_dose[df$date<start_point&df$Age_group=="0-59"])
+vac22 <- remove_waning(df$weekly_second_dose[df$date<start_point&df$Age_group!="0-59"])
+vac31 <- remove_waning(df$weekly_third_dose[df$date<start_point&df$Age_group=="0-59"],
+                       dose2=F)
+vac32 <- remove_waning(df$weekly_third_dose[df$date<start_point&df$Age_group!="0-59"],
+                       dose2=F)
 
 df <- df %>% filter(date>="2021-11-28")
 cases_group1 <- df$weekly_cases[df$Age_group=="0-59"]
@@ -99,6 +129,9 @@ vac_num <- cbind(df$weekly_second_dose[df$Age_group=="0-59"]+
 vac_num[,1] <- vac_num[,1]-vac_num[,2]-vac_num[,3]
 vac_num[,2] <- vac_num[,2]-vac_num[,4]
 vac_num[,3] <- vac_num[,3]-vac_num[,5]
+
+
+
 # total population
 N <- 9217000; I1 <- 1; E1 <- 5
 
@@ -118,41 +151,56 @@ t <- t[-1]
         I=I1, IV=0, IV1=0, IV2=0, R = 0)'
 
 ## v3
-y0 <- c(V2=vac21+vac22-vac31-vac32, 
+'y0 <- c(V2=vac21+vac22-vac31-vac32, 
         V3 = vac31 + vac32, V4 = 0, 
         S = N-I1*3-E1*3-vac21-vac22, E = E1, EV2=E1, EV3=E1, 
-        I=I1, IV2=I1, IV3=I1)
+        I=I1, IV2=I1, IV3=I1)'
 
 ## v4
 'y0 <- c(V2=vac21+vac22-vac31-vac32, 
         V31 = vac31, V41 = 0, V32 = vac32, V42 = 0, 
         S = N-I1*4-E1*4-vac21-vac22, E = E1, EV2=E1, EV31=E1, EV32=E1,
         I=I1, IV2=I1, IV31=I1, IV32=I1)'
+## v5
+'y0 <- c(V2=vac21+vac22-vac31-vac32, 
+        V31 = vac31, V41 = 0, V32 = vac32, V42 = 0, 
+        S = N-I1*4-E1*4-vac21-vac22, S2=0, S31=0, S32=0,
+        E = E1, EV2=E1, EV31=E1, EV32=E1,
+        I=I1, IV2=I1, IV31=I1, IV32=I1)'
+
+## v6
+y0 <- c(V2=(vac21+vac22)[1]-sum(vac31+vac32)*(vac21+vac22)[1]/(sum(vac21+vac22)), 
+        V31 = vac31[1], V41 = 0, V32 = vac32[1], V42 = 0, 
+        S = N-I1*4-E1*4-sum(vac21+vac22), 
+        S2=(vac21+vac22)[2]-sum(vac31+vac32)*(vac21+vac22)[2]/(sum(vac21+vac22)), 
+        S31=vac31[2], S32=vac32[2],
+        E = E1, EV2=E1, EV31=E1, EV32=E1,
+        I=I1, IV2=I1, IV31=I1, IV32=I1)
 
 # data for Stan
-data_sir <- list(n_weeks = n_weeks, y0 = y0, 
+data_sir <- list(n_weeks = n_weeks, y0 = round(y0), 
                  N = N, ts = 1:7, 
                  vac_num = vac_num, cases = case_grouped)
 
 
 # number of MCMC steps
-model_version <- "model_v3"
+model_version <- "model_v6"
 niter <- 10000
 model <- stan_model(paste0(model_version, ".stan"))
 
 ## v3
-initf <- function(chain_id = 1) {
+'initf <- function(chain_id = 1) {
   #set.seed(chain_id)
   list(beta = 1.5, 
        phi_inv = 1/10,
-       day_shift = 1,
+       week_shift = 1,
        eta = 0.1, 
        epsilon1 = 0.1,
        epsilon2 = 0.3,
        epsilon3 = 0.5,
        d = 0.7,
        k = 1)
-} 
+}' 
 
 
 ## v4
@@ -160,7 +208,7 @@ initf <- function(chain_id = 1) {
   #set.seed(chain_id)
   list(beta = 1.5, 
        phi_inv = 1/10,
-       day_shift = 6,
+       week_shift = 6,
        eta = 0.1, 
        epsilon1 = 0.1,
        epsilon2 = 0.3,
@@ -171,6 +219,39 @@ initf <- function(chain_id = 1) {
        k = 1)
 } '
 
+## v5
+'initf <- function(chain_id = 1) {
+  #set.seed(chain_id)
+  list(beta = 1.5, 
+       phi_inv = 1/10,
+       week_shift = 6,
+       eta = 0.1, 
+       epsilon1 = 0.1,
+       epsilon2 = 0.3,
+       epsilon3 = 0.5,
+       epsilon4 = 0.3,
+       epsilon5 = 0.5,
+       d1 = 0.7,
+       d2 = 1,
+       k = 1)
+} '
+
+## v6
+initf <- function(chain_id = 1) {
+  #set.seed(chain_id)
+  list(beta = 1.5, 
+       phi_inv = 1/10,
+       week_shift = 6,
+       eta = 0.1, 
+       epsilon1 = 0.1,
+       epsilon2 = 0.3,
+       epsilon3 = 0.5,
+       alpha1 = 0.001,
+       alpha2 = 0.001,
+       d1 = 0.7,
+       d2 = 1,
+       k = 1)
+}
 # generate a list of lists to specify initial values
 n_chains <- 4
 init_ll <- lapply(1:n_chains, function(id) initf(chain_id = id))
@@ -179,18 +260,26 @@ fit_seir <- sampling(model, init = init_ll,
                      data = data_sir,
                      iter = niter,
                      chains = n_chains, 
-                     seed = 1996, 
-                     control = list(adapt_delta=0.95, max_treedepth=15))
+                     #control = list(adapt_delta=0.95, max_treedepth=15), 
+                     seed = 1996)
 
 saveRDS(fit_seir, paste0(model_version, "_fit_seir.rds"))
 
 ## v3
-pars=c("eta", "epsilon1","epsilon2","epsilon3",
-       "R0","beta","k", "phi_inv","day_shift", "d")
+'pars=c("eta", "epsilon1","epsilon2","epsilon3",
+       "R0","beta","k", "phi_inv","week_shift", "d")'
 ## v4
 'pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","epsilon5",
-       "R0","beta","k", "phi_inv","day_shift", "d")'
-#pars=c("eta","R0","beta","k")
+       "R0","beta","k", "phi_inv","week_shift", "d")'
+
+## v5
+'pars=c("eta", "epsilon1","epsilon2","epsilon3","epsilon4","epsilon5",
+       "R0", "beta", "k", "phi_inv","week_shift", "d1", "d2")'
+
+## v6
+pars=c("eta", "epsilon1","epsilon2","epsilon3","alpha1","alpha2",
+       "R0", "beta", "k", "phi_inv","week_shift", "d1", "d2")
+
 print(fit_seir, pars = pars)
 stan_dens(fit_seir, pars = pars, separate_chains = TRUE)
 traceplot(fit_seir, pars = pars)
