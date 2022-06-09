@@ -1,6 +1,7 @@
 rm(list=ls())
 ## Load packages
 library(rstan) 
+library(xtable)
 library(shinystan)
 library(tidyverse)
 library(truncnorm)
@@ -225,3 +226,7 @@ ggplot(seir_pred, mapping = aes(x = t)) +
 divergent <- get_sampler_params(fit_seir, inc_warmup=FALSE)[[1]]
 table(divergent[,5])
 #pairs(fit_seir)
+
+summary_df <- summary(fit_seir, 
+                      probs = c(0.025, 0.5, 0.975))$summary[pars,4:6] %>% round(4)
+print(xtable(summary_df))
