@@ -25,6 +25,10 @@ functions {
       real IV2 = y[15];
       real IV31 = y[16];
       real IV32 = y[17];
+      real R = y[18];
+      real RV2 = y[19];
+      real RV31 = y[20];
+      real RV32 = y[21];
       
       real N = x_i[1];
       real beta = theta[1];
@@ -54,11 +58,12 @@ functions {
       real dV42_dt = - alpha2 * V42 - 
                      (1 - epsilon5) * beta * c * (I + IV2 + IV31 + IV32) * V42 / N;
       
-      real dS_dt = - d * beta * c * (I + IV2 + IV31 + IV32) * S / N;
-      real dS2_dt = 0.0129 * V2 - beta * c * (I + IV2 + IV31 + IV32) * S2 / N;
-      real dS31_dt = 0.0078 * V31 + alpha1 * V41 - 
+      real dS_dt = 0.0001 * R - d * beta * c * (I + IV2 + IV31 + IV32) * S / N;
+      real dS2_dt = 0.0001 * RV2 + 0.0129 * V2 - 
+                    beta * c * (I + IV2 + IV31 + IV32) * S2 / N;
+      real dS31_dt = 0.0001 * RV31 + 0.0078 * V31 + alpha1 * V41 - 
                      beta * c * (I + IV2 + IV31 + IV32) * S31 / N;
-      real dS32_dt = 0.0078 * V32 + alpha2 * V42 - 
+      real dS32_dt = 0.0001 * RV32 + 0.0078 * V32 + alpha2 * V42 - 
                      d_old * beta * c * (I + IV2 + IV31 + IV32) * S32 / N;
       
       real dE_dt = d * beta * c * (I + IV2 + IV31 + IV32) * S / N - sigma * E;
@@ -79,10 +84,16 @@ functions {
       real dIV31_dt =  sigma * EV31 - gamma * IV31;
       real dIV32_dt =  sigma * EV32 - gamma * IV32;
       
+      real dR_dt = gamma * I - 0.0001 * R;
+      real dRV2_dt = gamma * IV2 - 0.0001 * RV2;
+      real dRV31_dt = gamma * IV31 - 0.0001 * RV31;
+      real dRV32_dt = gamma * IV32 - 0.0001 * RV32;
+      
       return {dV2_dt, dV31_dt, dV41_dt, dV32_dt, dV42_dt, 
               dS_dt, dS2_dt, dS31_dt, dS32_dt,
               dE_dt, dEV2_dt, dEV31_dt, dEV32_dt, 
-              dI_dt, dIV2_dt, dIV31_dt, dIV32_dt};
+              dI_dt, dIV2_dt, dIV31_dt, dIV32_dt,
+              dR_dt, dRV2_dt, dRV31_dt, dRV32_dt};
   }
   
   real[] col_sums(matrix X) {
@@ -97,7 +108,7 @@ functions {
 
 data {
   int<lower=1> n_weeks;
-  real y0[17]; 
+  real y0[21]; 
   real ts[7];
   int N;
   int cases[n_weeks, 4];
@@ -129,12 +140,12 @@ parameters {
 
 transformed parameters{
   real y_out[n_weeks, 4];
-  real temp[7,17];
+  real temp[7,21];
   //real gamma = 1./5;
   real phi = 1./phi_inv;
   real theta[13] = {0.95, 1./5, 1./3, 0.14, 1.0,
                    epsilon4, epsilon5, alpha1 / 1000, alpha2 / 1000, 
-                   1.30, 1.11, 0.59, d_old};
+                   1.28, 1.11, 0.59, d_old};
 
   temp = integrate_ode_rk45(sir, y0, 0.0, ts, theta, x_r, x_i);
   y_out[1] = col_sums(to_matrix(temp));
@@ -169,10 +180,10 @@ model {
   //sigma ~ normal(0.3, 0.3) T[0,1];
   //d ~ normal(0.7, 0.2) T[0,1];
   phi_inv ~ exponential(10);
-  d_old ~ normal(0.7, 0.5) T[0,];
+  d_old ~ normal(0.8, 0.5) T[0,];
   //eta ~ beta(2, 4);
-  epsilon4 ~ normal(0.4, 0.1) T[0,1];
-  epsilon5 ~ normal(0.7, 0.1) T[0,1];
+  epsilon4 ~ normal(0.5, 0.1) T[0,1];
+  epsilon5 ~ normal(0.8, 0.1) T[0,1];
   alpha1 ~ normal(1, 3) T[0,];
   alpha2 ~ normal(1, 3) T[0,];
   //sampling distribution

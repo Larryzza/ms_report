@@ -20,7 +20,9 @@ functions {
       real I = y[10];
       real IV2 = y[11];
       real IV3 = y[12];
-      //real R = y[11];
+      real R = y[13];
+      real RV2 = y[14];
+      real RV3 = y[15];
       
       real N = x_i[1];
       real beta = theta[1];
@@ -45,9 +47,10 @@ functions {
       real dV4_dt = - alpha1 * V4 - 
                     (1 - epsilon3) * beta * c * (I + IV2 + IV3) * V4 / N;
       
-      real dS_dt = - d * beta * c * (I + IV2 + IV3) * S / N;
-      real dS2_dt = 0.0129 * V2 - beta * c * (I + IV2 + IV3) * S2 / N;
-      real dS3_dt = 0.0078 * V3 + alpha1 * V4 - 
+      real dS_dt = 0.0001 * R - d * beta * c * (I + IV2 + IV3) * S / N;
+      real dS2_dt = 0.0001 * RV2 + 0.0129 * V2 - 
+                    beta * c * (I + IV2 + IV3) * S2 / N;
+      real dS3_dt = 0.0001 * RV3 + 0.0078 * V3 + alpha1 * V4 - 
                     beta * c * (I + IV2 + IV3) * S3 / N;
       
       real dE_dt = d * beta * c * (I + IV2 + IV3) * S / N - sigma * E;
@@ -63,10 +66,15 @@ functions {
       real dIV2_dt =  sigma * EV2 - gamma * IV2;
       real dIV3_dt =  sigma * EV3 - gamma * IV3;
       
+      real dR_dt = gamma * I - 0.0001 * R;
+      real dRV2_dt = gamma * IV2 - 0.0001 * RV2;
+      real dRV3_dt = gamma * IV3 - 0.0001 * RV3;
+      
       return {dV2_dt, dV3_dt, dV4_dt, 
               dS_dt, dS2_dt, dS3_dt,
               dE_dt, dEV2_dt, dEV3_dt,  
-              dI_dt, dIV2_dt, dIV3_dt};
+              dI_dt, dIV2_dt, dIV3_dt,
+              dR_dt, dRV2_dt, dRV3_dt};
   }
   
   real[] col_sums(matrix X) {
@@ -79,7 +87,7 @@ functions {
 
 data {
   int<lower=1> n_weeks;
-  real y0[12];
+  real y0[15];
   real ts[7];
   int N;
   int cases[n_weeks, 3];
@@ -110,7 +118,7 @@ parameters {
 
 transformed parameters{
   real y_out[n_weeks, 3];
-  real temp[7,12];
+  real temp[7,15];
   real gamma = 1./5;
   real phi = 1./phi_inv;
   real theta[12] = {beta, gamma, 1./3, eta, 1.0,

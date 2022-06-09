@@ -151,7 +151,8 @@ y0 <- c(V2=(vac21+vac22)[1]-sum(vac31+vac32)*(vac21+vac22)[1]/(sum(vac21+vac22))
         S2 = (vac21+vac22)[2]-sum(vac31+vac32)*(vac21+vac22)[2]/(sum(vac21+vac22)), 
         S3 = (vac31+vac32)[2],
         E = E1, EV2 = E1, EV3 = E1,
-        I = I1, IV2 = I1, IV3 = I1)
+        I = I1, IV2 = I1, IV3 = I1,
+        R = 0, RV2 = 0, RV3 = 0)
 
 # data for Stan
 data_sir <- list(n_weeks = n_weeks, y0 = round(y0), 
